@@ -51,7 +51,7 @@ Example Use Case:
 
 ## Prerequisites
 
-- OpenAI API key configured: OPENAI_API_KEY environment variable
+- .env file configured with your Github key and LLM details.
 - Agent Framework installed: pip install agent-framework
 - Special models for some agents:
   - ResearcherAgent: gpt-4o-search-preview (web search capability)
@@ -71,14 +71,9 @@ Example Use Case:
 
    If you already have the agent-framework installed globally or followed the main README guidance, you can skip this step.
 
-3. Navigate to the `samples/magentic` directory, copy the `.env.example` to `.env` and set your Azure OpenAI endpoint and deployment names:
+3. Configure your `.env` file with the necessary API keys and model settings.
 
-   ```bash
-    cp .env.example .env
-    ```
-
-4. Edit the `.env` file to include your Azure OpenAI endpoint and deployment names.
-5. Run the Magentic orchestration script:
+4. Run the Magentic orchestration script:
 
    ```bash
    python main.py
@@ -89,8 +84,4 @@ Example Use Case:
    python samples/magentic/main.py
    ```
 
-7. Observe the console output for real-time orchestration events and the final synthesized result.
-
-## Notes
-
-you need a model capable of searching in the internet to get the better results with the ResearcherAgent. If you have access to gpt-4o-search-preview, use it. Otherwise, you can use gpt-4o or any other model you have access to, but the results may vary. Additionally, you could add a tool to research the web, but the results won't also be as good as with a model with search capabilities.
+5. Observe the console output for real-time orchestration events and the final synthesized result.
