@@ -71,6 +71,7 @@ async def main():
         # Invoke the agent and output the result
         print("\nSending message to A2A agent...")
         response = await agent.run("What are your capabilities?")
+        print("\nWhat are your capabilities?")
 
         # Print the response
         print("\nAgent Response:")
@@ -80,6 +81,7 @@ async def main():
         # Invoke the agent and output the result
         print("\nSending message to A2A agent...")
         response = await agent.run("What is the weather in New York City today?")
+        print("\nWhat is the weather in New York City today?")
 
         # Print the response
         print("\nAgent Response:")
