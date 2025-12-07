@@ -275,10 +275,10 @@ async def run_remote_mcp_with_thread_streaming() -> None:
 async def main() -> None:
     print("=== OpenAI Responses Client Agent with Hosted Mcp Tools Examples ===\n")
 
-    # await run_hosted_mcp_without_approval()
+    await run_hosted_mcp_without_approval()
     # await run_hosted_mcp_without_thread_and_specific_approval()
     # await run_hosted_mcp_with_thread()
-    await run_hosted_mcp_with_thread_streaming()
+    # await run_hosted_mcp_with_thread_streaming()
     # await run_remote_mcp_with_thread_streaming()
 
 
