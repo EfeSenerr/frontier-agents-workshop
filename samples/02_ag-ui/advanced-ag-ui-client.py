@@ -193,6 +193,51 @@ async def conversation_example(client: AGUIChatClient):
     )
     print(f"Assistant: {response3.text}")
 
+async def conversation_example_2(client: AGUIChatClient):
+    """Demonstrate multi-turn conversation with client-side history management.
+
+    Note: This example wraps AGUIChatClient in ChatAgent to maintain conversation history
+    client-side. This ensures context is preserved across multiple turns regardless of
+    server-side thread management capabilities.
+    """
+    print("\n" + "=" * 60)
+    print("MULTI-TURN CONVERSATION EXAMPLE (with ChatAgent wrapper)")
+    print("=" * 60)
+    print("\nNote: Using ChatAgent wrapper for client-side conversation history management.\n")
+
+    from agent_framework import ChatAgent
+
+    # Wrap the AGUIChatClient in a ChatAgent for client-side history management
+    agent = ChatAgent(
+        name="ConversationAgent",
+        chat_client=client,
+        instructions="You are a helpful assistant with memory of our conversation.",
+        tools=[calculate],
+    )
+
+    # Create a thread for conversation continuity
+    thread = agent.get_new_thread()
+
+    # First turn
+    print("User: My name is Alice\n")
+    result1 = await agent.run("My name is Alice", thread=thread)
+    print(f"Assistant: {result1.text}")
+
+    # Second turn - agent should remember the name
+    print("\nUser: What's my name?\n")
+    result2 = await agent.run("What's my name?", thread=thread)
+    print(f"Assistant: {result2.text}")
+
+    # Check if context was maintained
+    if "alice" in result2.text.lower():
+        print("\n[Success: ChatAgent maintained conversation context!]")
+    else:
+        print("\n[Warning: Context not maintained - unexpected behavior]")
+
+    # Third turn with tool usage
+    print("\nUser: Can you also tell me what 10 * 5 is?\n")
+    result3 = await agent.run("Can you also tell me what 10 * 5 is?", thread=thread)
+    print(f"Assistant: {result3.text}")
 
 async def main():
     """Run all examples."""
@@ -218,6 +263,9 @@ async def main():
 
             # Separate conversation with new thread
             await conversation_example(client)
+
+            # Separate conversation with new thread
+            await conversation_example_2(client)
 
             print("\n" + "=" * 60)
             print("All examples completed successfully!")
