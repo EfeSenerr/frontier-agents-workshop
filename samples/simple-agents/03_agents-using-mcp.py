@@ -34,9 +34,18 @@ medium_client=create_chat_client(medium_model_name)
 
 small_client=create_chat_client(small_model_name)
 
+client_4_1=create_chat_client(os.environ.get("4.1_DEPLOYMENT_MODEL_NAME"))
+
 if TYPE_CHECKING:
     from agent_framework import AgentProtocol, AgentThread
 
+learn_tool = MCPStreamableHTTPTool(
+            name="Microsoft Learn MCP",
+            description="This tool will give you all up to date information about Microsoft products and libraries from the official Microsoft documentation.",
+            url="https://learn.microsoft.com/api/mcp",
+            # we require approval for all function calls
+            approval_mode="always_require",
+        )
 
 async def handle_approvals_without_thread(query: str, agent: "AgentProtocol"):
     """When we don't have a thread, we need to ensure we return with the input, approval request and approval."""
@@ -146,9 +155,9 @@ async def run_hosted_mcp_without_approval() -> None:
     # Tools are provided when creating the agent
     # The agent can use these tools for any query during its lifetime
     async with ChatAgent(
-        chat_client=small_client,
+        chat_client=medium_client,
         name="DocsAgent",
-        instructions="You are a helpful assistant that can help with microsoft documentation questions.",
+        instructions="You are a helpful assistant that can help with microsoft documentation questions, use your tool if you are asked about microsoft product or library.",
         tools=HostedMCPTool(
             name="Microsoft Learn MCP",
             url="https://learn.microsoft.com/api/mcp",
@@ -177,15 +186,10 @@ async def run_hosted_mcp_with_thread() -> None:
     # Tools are provided when creating the agent
     # The agent can use these tools for any query during its lifetime
     async with ChatAgent(
-        chat_client=completion_client,
+        chat_client=client_4_1,
         name="DocsAgent",
-        instructions="You are a helpful assistant that can help with microsoft documentation questions.",
-        tools=HostedMCPTool(
-            name="Microsoft Learn MCP",
-            url="https://learn.microsoft.com/api/mcp",
-            # we require approval for all function calls
-            approval_mode="always_require",
-        ),
+        instructions="You are a helpful assistant that can help with microsoft documentation questions, always use your available tool, microsoft_docs_search, to answer microsoft product or library related questions.",
+        tools=learn_tool,
     ) as agent:
         # First query
         thread = agent.get_new_thread()
@@ -210,7 +214,7 @@ async def run_hosted_mcp_with_thread_streaming() -> None:
         chat_client=completion_client,
         name="DocsAgent",
         instructions="You are a helpful assistant that can help with microsoft documentation questions.",
-        tools=HostedMCPTool(
+        tools=MCPStreamableHTTPTool(
             name="Microsoft Learn MCP",
             url="https://learn.microsoft.com/api/mcp",
             # we require approval for all function calls
@@ -274,8 +278,8 @@ async def main() -> None:
     # await run_hosted_mcp_without_approval()
     # await run_hosted_mcp_without_thread_and_specific_approval()
     # await run_hosted_mcp_with_thread()
-    # await run_hosted_mcp_with_thread_streaming()
-    await run_remote_mcp_with_thread_streaming()
+    await run_hosted_mcp_with_thread_streaming()
+    # await run_remote_mcp_with_thread_streaming()
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ import os
 import logging
 
 from agent_framework import BaseChatClient
-from agent_framework.openai import OpenAIChatClient 
+from agent_framework.openai import OpenAIChatClient ## github
 from agent_framework.azure import AzureOpenAIChatClient
 
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
