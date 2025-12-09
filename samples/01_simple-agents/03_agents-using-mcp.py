@@ -96,27 +96,35 @@ async def handle_approvals_with_thread_streaming(query: str, agent: "AgentProtoc
     """Here we let the thread deal with the previous responses, and we just rerun with the approval."""
     from agent_framework import ChatMessage
 
-    new_input: list[ChatMessage] = []
-    new_input_added = True
-    while new_input_added:
-        new_input_added = False
-        new_input.append(ChatMessage(role="user", text=query))
-        async for update in agent.run_stream(new_input, thread=thread, store=True):
+    # Send initial query
+    current_input = query
+    
+    while True:
+        has_approval_request = False
+        async for update in agent.run_stream(current_input, thread=thread, store=True):
             if update.user_input_requests:
+                has_approval_request = True
+                # Collect all approval responses
+                approval_messages: list[ChatMessage] = []
                 for user_input_needed in update.user_input_requests:
                     print(
                         f"User Input Request for function from {agent.name}: {user_input_needed.function_call.name}"
                         f" with arguments: {user_input_needed.function_call.arguments}"
                     )
                     user_approval = input("Approve function call? (y/n): ")
-                    new_input.append(
+                    approval_messages.append(
                         ChatMessage(
                             role="user", contents=[user_input_needed.create_response(user_approval.lower() == "y")]
                         )
                     )
-                    new_input_added = True
+                # Set the approval messages as the next input
+                current_input = approval_messages
             else:
                 yield update
+        
+        # If there were no approval requests, we're done
+        if not has_approval_request:
+            break
 
 
 async def run_hosted_mcp_without_thread_and_specific_approval() -> None:
@@ -275,10 +283,10 @@ async def run_remote_mcp_with_thread_streaming() -> None:
 async def main() -> None:
     print("=== OpenAI Responses Client Agent with Hosted Mcp Tools Examples ===\n")
 
-    await run_hosted_mcp_without_approval()
+    # await run_hosted_mcp_without_approval()
     # await run_hosted_mcp_without_thread_and_specific_approval()
     # await run_hosted_mcp_with_thread()
-    # await run_hosted_mcp_with_thread_streaming()
+    await run_hosted_mcp_with_thread_streaming()
     # await run_remote_mcp_with_thread_streaming()
 
 
