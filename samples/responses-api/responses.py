@@ -45,75 +45,44 @@ def search_documents(query: str, top_k: int = 10) -> list[dict]:
     Search Azure AI Search index and return results.
     
     Uses vector semantic hybrid search when AI_SEARCH_SEMANTIC_CONFIG and 
-    AI_SEARCH_VECTOR_FIELD are set in .env. Falls back to semantic-only if vectorization fails.
+    AI_SEARCH_VECTOR_FIELD are set in .env.
     """
     from azure.search.documents.models import VectorizableTextQuery
-    from azure.core.exceptions import HttpResponseError
-    import time
     
     search_client = get_search_client()
     semantic_config = os.getenv("AI_SEARCH_SEMANTIC_CONFIG", "")
     vector_field = os.getenv("AI_SEARCH_VECTOR_FIELD", "")
     
-    def build_search_kwargs(use_vector: bool = True):
-        kwargs = {
-            "search_text": query,
-            "top": top_k,
-        }
-        if semantic_config:
-            kwargs["query_type"] = "semantic"
-            kwargs["semantic_configuration_name"] = semantic_config
-        if vector_field and use_vector:
-            kwargs["vector_queries"] = [
-                VectorizableTextQuery(
-                    text=query,
-                    k_nearest_neighbors=top_k,
-                    fields=vector_field,
-                )
-            ]
-        return kwargs
+    search_kwargs = {
+        "search_text": query,
+        "top": top_k,
+    }
     
-    # Try with vector search first (with retry)
-    use_vector = bool(vector_field)
-    max_retries = 2
+    if semantic_config:
+        search_kwargs["query_type"] = "semantic"
+        search_kwargs["semantic_configuration_name"] = semantic_config
     
-    for attempt in range(max_retries + 2):  # +2 for final fallback attempt
-        try:
-            search_kwargs = build_search_kwargs(use_vector=use_vector)
-            
-            # Log search type
-            if semantic_config and use_vector:
-                print(f"   Query type: vector_semantic_hybrid")
-            elif semantic_config:
-                print(f"   Query type: semantic")
-            elif use_vector:
-                print(f"   Query type: vector")
-            else:
-                print(f"   Query type: simple full-text")
-            
-            results = search_client.search(**search_kwargs)
-            
-            documents = []
-            for result in results:
-                doc = dict(result)
-                documents.append(doc)
-            
-            return documents
-            
-        except HttpResponseError as e:
-            if "vectorization" in str(e).lower() and use_vector:
-                if attempt < max_retries:
-                    print(f"   ⚠️ Vectorization timeout, retrying ({attempt + 1}/{max_retries})...")
-                    time.sleep(2)
-                else:
-                    print(f"   ⚠️ Vectorization failed after retries, falling back to semantic-only search")
-                    use_vector = False
-                    # Continue loop to try without vector
-            else:
-                raise
+    if vector_field:
+        search_kwargs["vector_queries"] = [
+            VectorizableTextQuery(
+                text=query,
+                k_nearest_neighbors=top_k,
+                fields=vector_field,
+            )
+        ]
     
-    # Should not reach here, but just in case
-    return []
+    # Log search type
+    if semantic_config and vector_field:
+        print(f"   Query type: vector_semantic_hybrid")
+    elif semantic_config:
+        print(f"   Query type: semantic")
+    elif vector_field:
+        print(f"   Query type: vector")
+    else:
+        print(f"   Query type: simple full-text")
+    
+    results = search_client.search(**search_kwargs)
+    return [dict(result) for result in results]
 
 
 def format_search_results(documents: list[dict]) -> str:
