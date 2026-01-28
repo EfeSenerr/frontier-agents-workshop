@@ -59,6 +59,7 @@ async def main() -> None:
                 "You are a helpful agent that searches information using Azure AI Search. "
                 "Always use the search tool and index to find data and provide accurate information."
             ),
+            temperature=0.1,
             tools=[{"type": "azure_ai_search"}],
             tool_resources={
                 "azure_ai_search": {
@@ -66,7 +67,8 @@ async def main() -> None:
                         {
                             "index_connection_id": ai_search_conn_id,
                             "index_name": os.environ["AI_SEARCH_INDEX_NAME"],
-                            "query_type": "vector",
+                            "query_type": "vector_semantic_hybrid",  # Better for document name matching
+                            "top_k": 20,
                         }
                     ]
                 }
@@ -86,7 +88,8 @@ async def main() -> None:
 
                 # 3. Simulate conversation with the agent
                 user_input = (
-                    "how was greco's performance in 2023?"
+                    # "how was greco's performance in 2023?"
+                    "hey can you compare the documents insurance_final_bank and insurance_final_proposal, and give me all the differences between these two policy documents? Output should be structured in a table format."
                     " Use the search tool and index."  # You can modify prompt to force tool usage
                 )
                 print(f"User: {user_input}")
@@ -94,7 +97,7 @@ async def main() -> None:
 
                 # Stream the response and collect citations
                 citations: list[CitationAnnotation] = []
-                async for chunk in agent.run_stream(user_input):
+                async for chunk in agent.run_stream(user_input, tool_choice="required"):
                     if chunk.text:
                         print(chunk.text, end="", flush=True)
 
