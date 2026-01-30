@@ -80,6 +80,9 @@ async def main() -> None:
                 print("This agent uses Azure AI Search tool to search data.")
                 print("The conversation maintains context across multiple turns.\n")
 
+                # Create a thread to maintain conversation history
+                thread = agent.get_new_thread()
+
                 # 3. Multi-turn conversation loop
                 while True:
                     try:
@@ -95,9 +98,9 @@ async def main() -> None:
 
                     print("Agent: ", end="", flush=True)
 
-                    # Stream the response and collect citations
+                    # Stream the response and collect citations (using thread for context)
                     citations: list[CitationAnnotation] = []
-                    async for chunk in agent.run_stream(user_input, tool_choice="required"):
+                    async for chunk in agent.run_stream(user_input, thread=thread, tool_choice="required"):
                         if chunk.text:
                             print(chunk.text, end="", flush=True)
 
