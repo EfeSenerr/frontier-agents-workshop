@@ -1,8 +1,9 @@
 # Microsoft Agent Framework
+agent-framework==1.0.0b260130
 agent-framework-a2a==1.0.0b260128
 agent-framework-ag-ui==1.0.0b260128
-agent-framework-azure-ai==1.0.0b260128
-agent-framework-core==1.0.0b260128
+agent-framework-azure-ai==1.0.0b260130
+agent-framework-core==1.0.0b260130
 agent-framework-declarative==1.0.0b260128
 agent-framework-devui==1.0.0b260128
 agent-framework-mem0==1.0.0b260128
