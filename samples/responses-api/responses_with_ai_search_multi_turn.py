@@ -95,11 +95,11 @@ def search_documents(query: str, top: int = 5) -> str:
             vector_field = os.getenv("AI_SEARCH_VECTOR_FIELD", "text_vector")
             semantic_config = os.getenv("AI_SEARCH_SEMANTIC_CONFIG", "default")
             
-            print(f"  🧠 Semantic search with vector field: {vector_field}")
+            print(f"  🧠 Hybrid search (semantic + vector) with field: {vector_field}")
             results = list(search_client.search(
                 search_text=query,
                 top=top,
-                query_type="vector_semantic_hybrid",
+                query_type="semantic",
                 semantic_configuration_name=semantic_config,
                 vector_queries=[
                     VectorizableTextQuery(
