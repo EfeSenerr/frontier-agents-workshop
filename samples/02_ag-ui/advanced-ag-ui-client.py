@@ -12,14 +12,14 @@ This example demonstrates advanced AGUIChatClient features including:
 import asyncio
 import os
 
-from agent_framework import ai_function
+from agent_framework import tool
 from agent_framework.ag_ui import AGUIChatClient
-
+from agent_framework import tool
 from dotenv import load_dotenv
 
 load_dotenv()
 
-@ai_function
+@tool
 def get_weather(location: str) -> str:
     """Get the current weather for a location.
 
@@ -36,7 +36,7 @@ def get_weather(location: str) -> str:
     return weather_data.get(location.lower(), f"Weather data not available for {location}")
 
 
-@ai_function
+@tool
 def calculate(a: float, b: float, operation: str) -> str:
     """Perform basic arithmetic operations.
 
@@ -76,10 +76,10 @@ async def streaming_example(client: AGUIChatClient, thread_id: str | None = None
         if not thread_id and update.additional_properties:
             thread_id = update.additional_properties.get("thread_id")
 
-        from agent_framework import TextContent
+        # from agent_framework import TextContent
 
         for content in update.contents:
-            if isinstance(content, TextContent) and content.text:
+            if content.text:
                 print(content.text, end="", flush=True)
 
     print("\n")

@@ -10,14 +10,14 @@ from samples.shared.model_client import create_chat_client
 """Magentic Workflow Example.
 
 This module demonstrates a multi-agent workflow using the Magentic framework.
-It orchestrates two specialized agents (Researcher and Coder) to collaboratively
-solve complex tasks that require both information gathering and computational analysis.
+It orchestrates multiple specialized agents to collaboratively solve complex tasks.
 
 The example workflow:
-1. A ResearcherAgent gathers information from various sources
-2. A CoderAgent performs data processing and quantitative analysis
-3. A standard manager orchestrates the collaboration between agents
-4. Events are streamed in real-time to provide visibility into the workflow
+1. A users_agent handles user-specific information (identity, allergies, budget)
+2. A manager_agent resolves location and time context
+3. A chef_agent recommends meals based on all gathered context
+4. A manager agent orchestrates the collaboration between agents
+5. Results are streamed in real-time to provide visibility into the workflow
 
 Requirements:
 - Azure OpenAI service configured with appropriate credentials
@@ -33,12 +33,7 @@ import pytz
 from dotenv import load_dotenv
 from agent_framework import (
     ChatAgent,
-    MagenticAgentDeltaEvent,
-    MagenticAgentMessageEvent,
     MagenticBuilder,
-    MagenticFinalResultEvent,
-    MagenticOrchestratorMessageEvent,
-    WorkflowEvent,
 )
 
 # Configure logging to debug level for detailed workflow tracking
@@ -232,59 +227,18 @@ async def run_magentic_workflow() -> None:
         chat_client=small_client,
         tools=[get_available_ingredients, get_weather],
     )
-    
-    # State variables for managing streaming display output
-    # These track which agent is currently streaming and whether a line is open
-    last_stream_agent_id: str | None = None  # ID of the agent that last sent a delta
-    stream_line_open: bool = False  # Whether we're currently in the middle of streaming
 
-    # Unified callback for all workflow events
-    def on_event(event: WorkflowEvent) -> None:
-        """Process and display events emitted by the Magentic workflow."""
-        nonlocal last_stream_agent_id, stream_line_open
-        
-        # Handle orchestrator messages (workflow coordination events)
-        if isinstance(event, MagenticOrchestratorMessageEvent):
-            print(f"\n[ORCH:{event.kind}]\n\n{getattr(event.message, 'text', '')}\n{'-' * 26}")
-            
-        # Handle streaming delta events (token-by-token agent responses)
-        elif isinstance(event, MagenticAgentDeltaEvent):
-            # Ignore empty or non-text deltas to avoid printing "None"
-            if not isinstance(event.text, str) or not event.text:
-                return
-
-            # Start a new stream line if agent changed or no stream is currently open
-            if last_stream_agent_id != event.agent_id or not stream_line_open:
-                if stream_line_open:
-                    print()  # Close previous stream line
-                print(f"\n[STREAM:{event.agent_id}]: ", end="", flush=True)
-                last_stream_agent_id = event.agent_id
-                stream_line_open = True
-            # Print the delta text without newline for continuous streaming
-            print(event.text, end="", flush=True)
-            
-        # Handle complete agent message events
-        elif isinstance(event, MagenticAgentMessageEvent):
-            # Close any open stream line before showing final message
-            if stream_line_open:
-                print(" (final)")  # Mark end of streaming
-                stream_line_open = False
-                print()
-            # Display the complete agent message
-            msg = event.message
-            if msg is not None:
-                # Flatten newlines for compact display
-                response_text = (msg.text or "").replace("\n", " ")
-                print(f"\n[AGENT:{event.agent_id}] {msg.role.value}\n\n{response_text}\n{'-' * 26}")
-                
-        # Handle final result event (workflow completion)
-        elif isinstance(event, MagenticFinalResultEvent):
-            print("\n" + "=" * 50)
-            print("FINAL RESULT:")
-            print("=" * 50)
-            if event.message is not None:
-                print(event.message.text)
-            print("=" * 50)
+    # Create a manager agent for orchestration
+    orchestrator_agent = ChatAgent(
+        name="MagenticManager",
+        description="Orchestrator that coordinates the user, location, and chef agents",
+        instructions=(
+            "You coordinate a team of agents to help users find the perfect meal. "
+            "First gather user info (identity, allergies, budget, preferences), "
+            "then get location and time context, and finally have the chef recommend meals."
+        ),
+        chat_client=completion_client,
+    )
 
 
     print("\n---------------------------------------------------------------------")
@@ -294,13 +248,9 @@ async def run_magentic_workflow() -> None:
     # Build the Magentic workflow using the builder pattern
     workflow = (
         MagenticBuilder()
-        .participants(
-            users=users_agent,
-            manager=manager_agent,
-            chef=chef_agent,
-        )
-        .with_standard_manager(
-            chat_client=completion_client,
+        .participants([users_agent, manager_agent, chef_agent])
+        .with_manager(
+            agent=orchestrator_agent,
             max_round_count=20,
             max_stall_count=4,
             max_reset_count=1,
@@ -314,13 +264,14 @@ async def run_magentic_workflow() -> None:
     print("\nStarting workflow execution...")
     
     try:
-        # Execute the workflow with streaming enabled
-        # This returns an async generator yielding events as they occur
-        async for event in workflow.run_stream(task):
-            # Process each event
-            on_event(event)
+        # Wrap the workflow as an agent for composition scenarios
+        print("\nWrapping workflow as an agent and running...")
+        workflow_agent = workflow.as_agent(name="MagenticWorkflowAgent")
+        async for response in workflow_agent.run_stream(task):
+            # Print streaming response text
+            print(response.text, end="", flush=True)
 
-        print(f"Workflow completed!")
+        print(f"\n\nWorkflow completed!")
     except Exception as e:
         # Handle any errors during workflow execution
         logger.error(f"Workflow execution failed: {e}", exc_info=True)

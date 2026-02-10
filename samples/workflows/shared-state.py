@@ -42,7 +42,7 @@ from agent_framework import (
 )
 from dotenv import load_dotenv
 from pydantic import BaseModel
-
+from agent_framework import ChatAgent
 
 # ============================================================================
 # Pydantic Models
@@ -112,16 +112,18 @@ completion_client=create_chat_client(completion_model_name)
 medium_client=create_chat_client(medium_model_name)
 small_client=create_chat_client(small_model_name)    
 
-intent_agent = completion_client.create_agent(
+intent_agent = ChatAgent(
     instructions=INTENT_PROMPT,
     response_format=IntentResult,
-    name="intent_extractor"
+    name="intent_extractor",
+    chat_client=completion_client,
 )
 
-response_agent = medium_client.create_agent(
+response_agent = ChatAgent(
     instructions=RESPONSE_PROMPT,
     response_format=ResponseResult,
-    name="response_generator"
+    name="response_generator",
+    chat_client=medium_client,
 )
 
 
@@ -144,7 +146,7 @@ async def start(message: str, ctx: WorkflowContext) -> None:
 @executor(id="bridge")
 async def bridge(resp: AgentExecutorResponse, ctx: WorkflowContext) -> None:
     """Bridge intent result to response agent."""
-    extraction = json.loads(resp.agent_run_response.text)
+    extraction = json.loads(resp.agent_response.text)
     message = await ctx.get_shared_state("message")
     
     print(f"\n Step 2: Intent extracted")
@@ -166,7 +168,7 @@ Missing Info: {', '.join(extraction.get('missing_info', [])) or 'none'}"""
 @executor(id="output")
 async def output(resp: AgentExecutorResponse, ctx: WorkflowContext) -> None:
     """Output final response."""
-    result = json.loads(resp.agent_run_response.text)
+    result = json.loads(resp.agent_response.text)
     print(f"\n Step 3: Response generated")
     print(f"\n{'='*60}")
     print(f"Response: {result['response']}")
@@ -192,7 +194,7 @@ workflow = (
 
 async def main():
     if len(sys.argv) < 2:
-        print('Usage: python src/minimal_workflow.py "message"')
+        print('Usage: python samples/workflows/shared-state.py "message"')
         sys.exit(1)
 
     message = sys.argv[1]

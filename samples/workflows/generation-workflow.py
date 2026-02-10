@@ -6,6 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from samples.shared.model_client import create_chat_client
+from agent_framework import ChatAgent
 
 """Agent Workflow - Content Review with Quality Routing.
 
@@ -78,17 +79,18 @@ def is_approved(message: Any) -> bool:
 
 
 # Create Writer agent - generates content
-writer = small_client.create_agent(
+writer = ChatAgent(
     name="Writer",
     instructions=(
         "You are an excellent content writer. "
         "Create clear, engaging content based on the user's request. "
         "Focus on clarity, accuracy, and proper structure."
     ),
+    chat_client=small_client,
 )
 
 # Create Reviewer agent - evaluates and provides structured feedback
-reviewer = medium_client.create_agent(
+reviewer = ChatAgent(
     name="Reviewer",
     instructions=(
         "You are an expert content reviewer. "
@@ -103,10 +105,11 @@ reviewer = medium_client.create_agent(
         "- clarity, completeness, accuracy, structure: individual scores (0-100)"
     ),
     response_format=ReviewResult,
+    chat_client = medium_client,
 )
 
 # Create Editor agent - improves content based on feedback
-editor = completion_client.create_agent(
+editor = ChatAgent(
     name="Editor",
     instructions=(
         "You are a skilled editor. "
@@ -114,20 +117,22 @@ editor = completion_client.create_agent(
         "Improve the content by addressing all the issues mentioned in the feedback. "
         "Maintain the original intent while enhancing clarity, completeness, accuracy, and structure."
     ),
+    chat_client=completion_client,
 )
 
 # Create Publisher agent - formats content for publication
-publisher = small_client.create_agent(
+publisher = ChatAgent(
     name="Publisher",
     instructions=(
         "You are a publishing agent. "
         "You receive either approved content or edited content. "
         "Format it for publication with proper headings and structure."
     ),
+    chat_client=small_client,
 )
 
 # Create Summarizer agent - creates final publication report
-summarizer = small_client.create_agent(
+summarizer = ChatAgent(
     name="Summarizer",
     instructions=(
         "You are a summarizer agent. "
@@ -137,6 +142,7 @@ summarizer = small_client.create_agent(
         "3. Key highlights and takeaways\n"
         "Keep it concise and professional."
     ),
+    chat_client=small_client,
 )
 
 # Build workflow with branching and convergence:

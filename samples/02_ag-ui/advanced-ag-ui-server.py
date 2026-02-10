@@ -12,7 +12,7 @@ from samples.shared.model_client import create_chat_client
 import logging
 import os
 
-from agent_framework import ChatAgent, ai_function
+from agent_framework import ChatAgent, tool
 from agent_framework.ag_ui import add_agent_framework_fastapi_endpoint
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -34,7 +34,7 @@ medium_client=create_chat_client(medium_model_name)
 
 
 # Server-side tool (executes on server)
-@ai_function(description="Get the time zone for a location.")
+@tool(description="Get the time zone for a location.")
 def get_time_zone(location: str) -> str:
     """Get the time zone for a location.
 

@@ -2,6 +2,8 @@
 
 import sys
 from pathlib import Path
+from random import randrange
+from typing import TYPE_CHECKING, Annotated, Any
 
 # Add the project root to the path so we can import from samples.shared
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -12,22 +14,20 @@ import os
 import asyncio
 from random import randint
 from typing import Annotated
-from agent_framework import ChatAgent, ChatMessage, Role
-from agent_framework import ai_function
-from pydantic import Field
-import random
-
+from agent_framework import AgentResponse, ChatAgent, ChatMessage, tool
+from agent_framework import Content
 from dotenv import load_dotenv
 
 load_dotenv()
 
 """
-OpenAI Chat Client Direct Usage Example
+Demonstration of a tool with approvals.
 
-Demonstrates direct OpenAIChatClient usage for chat interactions with OpenAI models.
-Shows function calling capabilities with custom business logic.
-
+This sample demonstrates using AI functions with user approval workflows.
+It shows how to handle function call approvals without using threads.
 """
+
+conditions = ["sunny", "cloudy", "raining", "snowing", "clear"]
 
 completion_model_name = os.environ.get("COMPLETION_DEPLOYMENT_NAME")
 medium_model_name = os.environ.get("MEDIUM_DEPLOYMENT_MODEL_NAME")
@@ -39,91 +39,149 @@ medium_client=create_chat_client(medium_model_name)
 
 small_client=create_chat_client(small_model_name)
 
-@ai_function(approval_mode="always_require")
-def submit_payment(
-    amount: Annotated[float, "Payment amount in USD"],
-    recipient: Annotated[str, "Recipient name or vendor ID"],
-    reference: Annotated[str, "Short description for the payment reference"],
-) -> str:
-    """
-    Submit a payment request to the external payments system.
+# NOTE: approval_mode="never_require" is for sample brevity. Use "always_require" in production; see samples/getting_started/tools/function_tool_with_approval.py and samples/getting_started/tools/function_tool_with_approval_and_threads.py.
+@tool(approval_mode="never_require")
+def get_weather(location: Annotated[str, "The city and state, e.g. San Francisco, CA"]) -> str:
+    """Get the current weather for a given location."""
+    # Simulate weather data
+    return f"The weather in {location} is {conditions[randrange(0, len(conditions))]} and {randrange(-10, 30)}°C."
 
-    This operation has financial impact and should always be reviewed
-    and approved by a human before it is executed.
-    """
-    # In a real scenario this would call an external payments API.
-    # Here we just simulate the side effect.
+
+# Define a simple weather tool that requires approval
+@tool(approval_mode="always_require")
+def get_weather_detail(location: Annotated[str, "The city and state, e.g. San Francisco, CA"]) -> str:
+    """Get the current weather for a given location."""
+    # Simulate weather data
     return (
-        f"Payment of ${amount:.2f} to '{recipient}' has been submitted "
-        f"with reference '{reference}'."
+        f"The weather in {location} is {conditions[randrange(0, len(conditions))]} and {randrange(-10, 30)}°C, "
+        "with a humidity of 88%. "
+        f"Tomorrow will be {conditions[randrange(0, len(conditions))]} with a high of {randrange(-10, 30)}°C."
     )
 
-@ai_function(
-    name="get_account_balance",
-    description="Retrieves the current account balance for the user in USD"
-)
-def get_account_balance() -> float:
+
+async def handle_approvals(query: str, agent: "AgentProtocol") -> AgentResponse:
+    """Handle function call approvals.
+
+    When we don't have a thread, we need to ensure we include the original query,
+    the approval request, and the approval response in each iteration.
     """
-    Get the current account balance for the user.
-    
-    Returns:
-        float: The account balance in USD (numeric value only, no formatting).
-    
-    This operation is read-only and does not require approval.
+    result = await agent.run(query)
+    while len(result.user_input_requests) > 0:
+        # Start with the original query
+        new_inputs: list[Any] = [query]
+
+        for user_input_needed in result.user_input_requests:
+            print(f"\n[DEBUG] Type of user_input_needed: {type(user_input_needed)}")
+            print(f"[DEBUG] Dir: {dir(user_input_needed)}")
+            print(
+                f"\nUser Input Request for function from {agent.name}:"
+                f"\n  Function: {user_input_needed.function_call.name}"
+                f"\n  Arguments: {user_input_needed.function_call.arguments}"
+            )
+
+            # Add the assistant message with the approval request
+            new_inputs.append(ChatMessage(role="assistant", contents=[user_input_needed]))
+
+            # Get user approval
+            user_approval = await asyncio.to_thread(input, "\nApprove function call? (y/n): ")
+
+            # Add the user's approval response using Content.from_function_approval_response
+            approval_response = Content.from_function_approval_response(
+                approved=user_approval.lower() == "y",
+                id=user_input_needed.id,
+                function_call=user_input_needed.function_call,
+            )
+            new_inputs.append(
+                ChatMessage(role="user", contents=[approval_response])
+            )
+
+        # Run again with all the context
+        result = await agent.run(new_inputs)
+
+    return result
+
+
+async def handle_approvals_streaming(query: str, agent: "AgentProtocol") -> None:
+    """Handle function call approvals with streaming responses.
+
+    When we don't have a thread, we need to ensure we include the original query,
+    the approval request, and the approval response in each iteration.
     """
-    # Generate a random balance between 1000 and 5000 USD
-    balance = random.uniform(1000, 5000)
-    return round(balance, 2)
+    current_input: str | list[Any] = query
+    has_user_input_requests = True
+    while has_user_input_requests:
+        has_user_input_requests = False
+        user_input_requests: list[Any] = []
 
+        # Stream the response
+        async for chunk in agent.run_stream(current_input):
+            if chunk.text:
+                print(chunk.text, end="", flush=True)
 
-# Stateful agent wired to Azure OpenAI plus both banking tools
-agent = ChatAgent(
-    chat_client=medium_client,
-    name="FinanceAgent",
-    instructions=(
-        "You are an agent from Contoso Bank. You assist users with financial operations "
-        "and provide clear explanations. For transfers only amount, recipient name, and reference are needed."
-    ),
-    tools=[submit_payment, get_account_balance],
-)
+            # Collect user input requests from the stream
+            if chunk.user_input_requests:
+                user_input_requests.extend(chunk.user_input_requests)
 
-async def main():
-    # Preserve conversation memory across the entire console session
-    thread = agent.get_new_thread()
-    print("=== FinanceAgent - Interactive Session ===")
-    print("Type 'exit' or 'quit' to end the conversation\n")
+        if user_input_requests:
+            has_user_input_requests = True
+            # Start with the original query
+            new_inputs: list[Any] = [query]
 
-    while True:
-        user_input = input("You: ").strip()
-        if user_input.lower() in ("exit", "quit"):
-            print("Goodbye!")
-            break
-        if not user_input:
-            continue
-
-        print("\nAgent: ", end="", flush=True)
-        result = await agent.run(user_input, thread=thread)
-
-        if result.user_input_requests:
-            print("\n\n=== APPROVALS REQUIRED ===")
-            approval_messages: list[ChatMessage] = []
-            # Surface every pending tool call and gather a decision per call
-            for req in result.user_input_requests:
-                print(f"- Function: {req.function_call.name}")
-                print(f"  Arguments: {req.function_call.arguments}")
-                approved = input(f"Approve '{req.function_call.name}'? (yes/no): ").strip().lower() == "yes"
-                # Encode the approval/denial into a ChatMessage the framework consumes
-                approval_messages.append(
-                    ChatMessage(role=Role.USER, contents=[req.create_response(approved)])
+            for user_input_needed in user_input_requests:
+                print(
+                    f"\n\nUser Input Request for function from {agent.name}:"
+                    f"\n  Function: {user_input_needed.function_call.name}"
+                    f"\n  Arguments: {user_input_needed.function_call.arguments}"
                 )
 
-            # Resume the prior run once all approvals are ready
-            followup = await agent.run(approval_messages, thread=thread, prior_run=result)
-            print("\nAgent:", followup.text)
-        else:
-            print(result.text)
+                # Add the assistant message with the approval request
+                new_inputs.append(ChatMessage(role="assistant", contents=[user_input_needed]))
 
-        print()
+                # Get user approval
+                user_approval = await asyncio.to_thread(input, "\nApprove function call? (y/n): ")
+
+                # Add the user's approval response using Content.from_function_approval_response
+                from agent_framework import Content
+                approval_response = Content.from_function_approval_response(
+                    approved=user_approval.lower() == "y",
+                    id=user_input_needed.id,
+                    function_call=user_input_needed.function_call,
+                )
+                new_inputs.append(
+                    ChatMessage(role="user", contents=[approval_response])
+                )
+
+            # Update input with all the context for next iteration
+            current_input = new_inputs
+
+
+async def run_weather_agent_with_approval(is_streaming: bool) -> None:
+    """Example showing AI function with approval requirement."""
+    print(f"\n=== Weather Agent with Approval Required ({'Streaming' if is_streaming else 'Non-Streaming'}) ===\n")
+
+    async with ChatAgent(
+        chat_client=medium_client,
+        name="WeatherAgent",
+        instructions=("You are a helpful weather assistant. Use the get_weather tool to provide weather information."),
+        tools=[get_weather, get_weather_detail],
+    ) as agent:
+        query = "Can you give me an update of the weather in LA and Portland and detailed weather for Seattle?"
+        print(f"User: {query}")
+
+        if is_streaming:
+            print(f"\n{agent.name}: ", end="", flush=True)
+            await handle_approvals_streaming(query, agent)
+            print()
+        else:
+            result = await handle_approvals(query, agent)
+            print(f"\n{agent.name}: {result}\n")
+
+
+async def main() -> None:
+    print("=== Demonstration of a tool with approvals ===\n")
+
+    await run_weather_agent_with_approval(is_streaming=False)
+    await run_weather_agent_with_approval(is_streaming=True)
 
 
 if __name__ == "__main__":

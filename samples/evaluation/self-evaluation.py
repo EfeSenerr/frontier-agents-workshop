@@ -226,8 +226,10 @@ async def run_self_reflection_batch(
     )
 
     # Create agent, it loads environment variables AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT automatically
-    agent = openai_client.create_agent(
+    agent = ChatAgent(
+        name="Self-Reflection Agent",
         instructions="You are a helpful agent.",
+        chat_client=openai_client,
     )
 
     # Load input data

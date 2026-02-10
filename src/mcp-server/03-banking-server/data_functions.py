@@ -1,10 +1,10 @@
 import random
 from typing import Annotated
 
-from agent_framework import ai_function
+from agent_framework import tool
 
 
-@ai_function(
+@tool(
     name="submit_payment",
     description="Submit a payment request that always requires human approval.",
     approval_mode="always_require",
@@ -25,7 +25,7 @@ def submit_payment(
     )
 
 
-@ai_function(
+@tool(
     name="get_account_balance",
     description="Retrieves the current account balance for the user in USD.",
 )

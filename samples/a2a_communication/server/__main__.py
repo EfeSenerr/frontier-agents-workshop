@@ -1,6 +1,9 @@
 import click
 import uvicorn
-
+import sys
+import os
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 from a2a.server.agent_execution import AgentExecutor
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers.default_request_handler import (
@@ -13,9 +16,7 @@ from a2a.types import (
     SendMessageRequest,
     SendMessageResponse,
 )
-
 from samples.a2a_communication.server.weather_agent_executor import WeatherAgentExecutor, weather_agent_card
-
 
 class A2ARequestHandler(DefaultRequestHandler):
     """A2A Request Handler for the A2A Repo Agent."""
@@ -37,8 +38,8 @@ class A2ARequestHandler(DefaultRequestHandler):
 
 
 @click.command()
-@click.option('--host', 'host', default='localhost')
-@click.option('--port', 'port', default=8888)
+@click.option('--host', 'host', default='0.0.0.0')
+@click.option('--port', 'port', default=8080)
 def main(host: str, port: int):
     """Start the weather Q&A agent server backed by HelloWorldAgentExecutor."""
 
@@ -49,11 +50,31 @@ def main(host: str, port: int):
         task_store=task_store,
     )
 
+    if os.environ.get("CONTAINER_APP_NAME") and os.environ.get("CONTAINER_APP_ENV_DNS_SUFFIX"):
+        url = f'https://{os.environ["CONTAINER_APP_NAME"]}.{os.environ["CONTAINER_APP_ENV_DNS_SUFFIX"]}'
+    elif os.environ.get("A2A_AGENT_HOST"):
+        url = os.environ["A2A_AGENT_HOST"]
+    else:
+        url = f'http://{host}:{port}/'
+
     server = A2AStarletteApplication(
-        agent_card=weather_agent_card(url=f'http://{host}:{port}/'), http_handler=request_handler
+        agent_card=weather_agent_card(url=url), http_handler=request_handler
     )
-    uvicorn.run(server.build(), host=host, port=port)
+
+    app = server.build()
+
+    async def healthz(request):
+        return JSONResponse({"status": "ok"})
+
+    app.router.routes.append(Route("/_healthz", endpoint=healthz))
+
+
+    uvicorn.run(app, host=host, port=port)
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(e)
+        sys.exit(0)

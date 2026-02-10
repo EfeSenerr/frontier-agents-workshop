@@ -68,6 +68,9 @@ async def main():
             url=a2a_agent_host,
         )
 
+        print("Found agent capabilities:")
+        print(agent_card)
+
         # Invoke the agent and output the result
         print("\nSending message to A2A agent...")
         response = await agent.run("What are your capabilities?")

@@ -5,6 +5,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from samples.shared.model_client import create_chat_client
+from agent_framework import ChatAgent
+
 """Agent Workflow - Content Review with Quality Routing.
 
 This sample demonstrates:
@@ -38,28 +40,31 @@ medium_client=create_chat_client(medium_model_name)
 small_client=create_chat_client(small_model_name)    
 
 
-researcher = completion_client.create_agent(
+researcher = ChatAgent(
     instructions=(
         "You're an expert market and product researcher. Given a prompt, provide concise, factual insights,"
         " opportunities, and risks."
     ),
     name="researcher",
+    chat_client=medium_client,
 )
 
-marketer = small_client.create_agent(
+marketer = ChatAgent(
     instructions=(
         "You're a creative marketing strategist. Craft compelling value propositions and target messaging"
         " aligned to the prompt."
     ),
     name="marketer",
+    chat_client=small_client,
 )
 
-legal = medium_client.create_agent(
+legal = ChatAgent(
     instructions=(
         "You're a cautious legal/compliance reviewer. Highlight constraints, disclaimers, and policy concerns"
         " based on the prompt."
     ),
     name="legal",
+    chat_client=medium_client,
 )
 
 workflow = ConcurrentBuilder().participants([researcher, marketer, legal]).build()
